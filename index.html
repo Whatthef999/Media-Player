@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Media Player</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    margin: 0;
+    height: 100vh;
+    background: #0a0a0a;
+    color: #eee;
+}
+#sidebar {
+    width: 220px;
+    background: #111;
+    padding: 20px;
+    border-right: 1px solid #330000;
+    overflow-y: auto;
+}
+.channel-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #222;
+    border: 1px solid #330000;
+    border-radius: 5px;
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+}
+.channel-btn.active { background: #330000; }
+#main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+#audio-player {
+    width: 100%;
+    height: 60px;
+    background: #000;
+    border-radius: 8px;
+    border: 1px solid #330000;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+}
+#audio-player audio { width: 100%; }
+.controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+.btn { padding: 10px 20px; border-radius: 6px; border: 1px solid #660000; cursor: pointer; font-weight: bold; background: linear-gradient(180deg, #ff1a1a, #990000); color: #fff; }
+.btn.off { background: linear-gradient(180deg, #333, #111); border-color: #333; color: #aaa; }
+#playlist { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; }
+.video-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #111; border-radius: 6px; cursor: pointer; border-left: 4px solid transparent; }
+.video-item.active { border-left: 4px solid #ff0000; background: #2a0000; }
+.video-item img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar"></div>
+
+<div id="main">
+    <div id="audio-player">
+        <audio id="audio" controls></audio>
+    </div>
+
+    <div class="controls">
+        <button id="prevBtn" class="btn">⏮ Prev</button>
+        <button id="shuffleBtn" class="btn">🔀 Shuffle: ON</button>
+        <button id="nextBtn" class="btn">⏭ Skip</button>
+    </div>
+
+    <div id="playlist"></div>
+</div>
+
+<script>
+/* --- CHANNELS & PLAYLISTS --- */
+const channels = {
+  'Metal': [
+    { file: 'mp3/EtherealHordes.mp3', title: 'Ethereal Hordes', thumb: 'thumbs/EtherealHordes.jpg' },
+    { file: 'mp3/MarchoftheGolgothanCavalry.mp3', title: 'March of the Golgothan Cavalry', thumb: 'thumbs/MarchoftheGolgothanCavalry.jpg' },
+    { file: 'mp3/Shadowseternal.mp3', title: 'Shadows eternal', thumb: 'thumbs/Shadowseternal.jpg' }
+  ],
+  'Rock': [
+    { file: 'mp3/ACDC-HighVoltage.mp3', title: 'AC DC - High Voltage', thumb: 'thumbs/ACDC-HighVoltage.jpg' },
+    { file: 'mp3/ACDC-LiveWire.mp3', title: 'AC DC - Live Wire', thumb: 'thumbs/ACDC-LiveWire.jpg' }
+  ]
+};
+
+let currentChannel = 'Metal';
+let playlist = channels[currentChannel];
+let currentIndex = 0;
+let shuffleEnabled = true;
+let shuffleQueue = [];
+let shufflePos = 0;
+
+const audio = document.getElementById('audio');
+
+/* --- SHUFFLE QUEUE --- */
+function buildShuffleQueue(startIndex=0){
+    shuffleQueue = playlist.map((_,i)=>i).sort(()=>Math.random()-0.5);
+    const pos = shuffleQueue.indexOf(startIndex);
+    [shuffleQueue[0], shuffleQueue[pos]] = [shuffleQueue[pos], shuffleQueue[0]];
+    shufflePos = 0;
+}
+
+/* --- PLAYBACK --- */
+function playSong(index){
+    currentIndex = index;
+    audio.src = playlist[index].file;
+    audio.play().catch(e=>console.log(e));
+    highlight();
+}
+
+function playNext(){
+    if(shuffleEnabled){
+        shufflePos++;
+        if(shufflePos>=shuffleQueue.length){
+            buildShuffleQueue(currentIndex);
+            shufflePos=1;
+        }
+        playSong(shuffleQueue[shufflePos]);
+    } else {
+        playSong((currentIndex+1)%playlist.length);
+    }
+}
+
+function playPrev(){
+    if(shuffleEnabled){
+        shufflePos = (shufflePos-1+shuffleQueue.length)%shuffleQueue.length;
+        playSong(shuffleQueue[shufflePos]);
+    } else {
+        playSong((currentIndex-1+playlist.length)%playlist.length);
+    }
+}
+
+/* --- PLAYLIST RENDERING --- */
+function renderPlaylist(){
+    const pl = document.getElementById('playlist');
+    pl.innerHTML = '';
+    playlist.forEach((v,i)=>{
+        const d = document.createElement('div');
+        d.className='video-item';
+        d.innerHTML = `<img src="${v.thumb}" alt="thumb"><span>${v.title}</span>`;
+        d.onclick = ()=>{ if(shuffleEnabled) buildShuffleQueue(i); playSong(i); };
+        pl.appendChild(d);
+    });
+}
+
+function highlight(){
+    const indexToHighlight = shuffleEnabled ? shuffleQueue[shufflePos] : currentIndex;
+    document.querySelectorAll('.video-item').forEach((el,i)=> el.classList.toggle('active', i===indexToHighlight));
+}
+
+/* --- CHANNELS --- */
+function renderChannels(){
+    const sidebar = document.getElementById('sidebar');
+    sidebar.innerHTML='';
+    Object.keys(channels).forEach(ch=>{
+        const btn = document.createElement('button');
+        btn.className='channel-btn';
+        if(ch===currentChannel) btn.classList.add('active');
+        btn.textContent = ch;
+        btn.onclick = ()=>{
+            currentChannel = ch;
+            playlist = channels[ch];
+            currentIndex = 0;
+            buildShuffleQueue(0);
+            renderPlaylist();
+            highlight();
+            document.querySelectorAll('.channel-btn').forEach(b=>b.classList.remove('active'));
+            btn.classList.add('active');
+            if(playlist.length) playSong(0);
+        };
+        sidebar.appendChild(btn);
+    });
+}
+
+/* --- BUTTONS --- */
+document.getElementById('nextBtn').onclick = playNext;
+document.getElementById('prevBtn').onclick = playPrev;
+document.getElementById('shuffleBtn').onclick = function(){
+    shuffleEnabled=!shuffleEnabled;
+    this.textContent=`🔀 Shuffle: ${shuffleEnabled?'ON':'OFF'}`;
+    this.classList.toggle('off', !shuffleEnabled);
+    if(shuffleEnabled) buildShuffleQueue(currentIndex);
+};
+
+/* --- AUTO NEXT --- */
+audio.addEventListener('ended', playNext);
+
+/* --- INIT --- */
+buildShuffleQueue(0);
+renderChannels();
+renderPlaylist();
+playSong(0);
+</script>
+
+</body>
+</html>
