@@ -15,6 +15,7 @@ body {
     color: #eee;
 }
 
+/* ===== SIDEBAR ===== */
 #sidebar {
     width: 220px;
     background: #111;
@@ -24,7 +25,6 @@ body {
 }
 
 .channel-btn {
-    display: block;
     width: 100%;
     padding: 10px;
     margin-bottom: 10px;
@@ -37,18 +37,18 @@ body {
 }
 .channel-btn.active { background: #330000; }
 
+/* ===== MAIN ===== */
 #main {
     flex: 1;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    padding: 20px;
 }
 
 /* ===== NOW PLAYING ===== */
 #now-playing {
     display: flex;
     gap: 20px;
-    align-items: center;
     background: #000;
     border: 1px solid #330000;
     border-radius: 12px;
@@ -59,13 +59,9 @@ body {
 #now-art {
     width: 320px;
     height: 320px;
-    border-radius: 8px;
     object-fit: cover;
+    border-radius: 8px;
     box-shadow: 0 0 30px rgba(255,0,0,0.35);
-}
-
-#now-info {
-    flex: 1;
 }
 
 #now-title {
@@ -74,50 +70,67 @@ body {
     margin-bottom: 8px;
 }
 
-#now-channel {
-    opacity: 0.7;
-}
+#now-channel { opacity: 0.7; }
 
-/* ===== AUDIO ===== */
-#audio-player {
+/* ===== CUSTOM PLAYER ===== */
+#player-controls {
+    background: #111;
+    border: 1px solid #330000;
+    border-radius: 8px;
+    padding: 12px;
     margin-bottom: 15px;
 }
 
-#audio-player audio {
-    width: 100%;
-}
-
-/* ===== CONTROLS ===== */
-.controls {
+#control-row {
     display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 15px;
+    align-items: center;
+    gap: 12px;
 }
 
-.btn {
-    padding: 10px 20px;
+.control-btn {
+    padding: 8px 14px;
+    font-size: 18px;
     border-radius: 6px;
     border: 1px solid #660000;
     cursor: pointer;
-    font-weight: bold;
     background: linear-gradient(180deg, #ff1a1a, #990000);
     color: #fff;
 }
 
-.btn.off {
+.control-btn.off {
     background: linear-gradient(180deg, #333, #111);
     border-color: #333;
     color: #aaa;
+}
+
+#time {
+    font-size: 12px;
+    opacity: 0.8;
+    min-width: 90px;
+    text-align: center;
+}
+
+/* ===== TIMELINE ===== */
+#timeline {
+    flex: 1;
+    height: 6px;
+    background: #220000;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+}
+
+#progress {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ff0000, #aa0000);
+    border-radius: 4px;
 }
 
 /* ===== PLAYLIST ===== */
 #playlist {
     flex: 1;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
 }
 
 .track {
@@ -128,11 +141,12 @@ body {
     border-radius: 6px;
     cursor: pointer;
     border-left: 4px solid transparent;
+    margin-bottom: 8px;
 }
 
 .track.active {
-    border-left: 4px solid #ff0000;
     background: #2a0000;
+    border-left: 4px solid #ff0000;
 }
 
 .track img {
@@ -150,29 +164,36 @@ body {
 
 <div id="main">
 
-    <!-- NOW PLAYING -->
     <div id="now-playing">
-        <img id="now-art" src="" alt="Now Playing">
-        <div id="now-info">
-            <div id="now-title">—</div>
-            <div id="now-channel">—</div>
+        <img id="now-art">
+        <div>
+            <div id="now-title"></div>
+            <div id="now-channel"></div>
         </div>
     </div>
 
-    <div id="audio-player">
-        <audio id="audio" controls></audio>
-    </div>
+    <!-- CUSTOM AUDIO UI -->
+    <div id="player-controls">
+        <div id="control-row">
+            <button class="control-btn" id="prevBtn">⏮</button>
+            <button class="control-btn" id="playPause">▶</button>
+            <button class="control-btn" id="nextBtn">⏭</button>
 
-    <div class="controls">
-        <button class="btn" id="prevBtn">⏮ Prev</button>
-        <button class="btn" id="shuffleBtn">🔀 Shuffle: ON</button>
-        <button class="btn" id="nextBtn">⏭ Next</button>
+            <div id="time">0:00 / 0:00</div>
+
+            <div id="timeline">
+                <div id="progress"></div>
+            </div>
+
+            <button class="control-btn" id="shuffleBtn">🔀</button>
+        </div>
     </div>
 
     <div id="playlist"></div>
 </div>
 
-<script>
+<audio id="audio"></audio>
+
 /* ================= CONFIG ================= */
 
 const FALLBACK_THUMB = 'thumbs/Default.gif';
@@ -197,8 +218,6 @@ const channels = {
     }
 };
 
-/* ================= STATE ================= */
-
 let currentChannel = 'Metal';
 let playlist = channels[currentChannel].tracks;
 let currentIndex = 0;
@@ -208,18 +227,27 @@ let shuffleQueue = [];
 let shufflePos = 0;
 
 const audio = document.getElementById('audio');
+const playBtn = document.getElementById('playPause');
+const progress = document.getElementById('progress');
+const timeline = document.getElementById('timeline');
+const timeLabel = document.getElementById('time');
 const nowArt = document.getElementById('now-art');
 const nowTitle = document.getElementById('now-title');
 const nowChannel = document.getElementById('now-channel');
+const shuffleBtn = document.getElementById('shuffleBtn');
 
-/* ================= HELPERS ================= */
+/* ===== HELPERS ===== */
+function formatTime(t) {
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
 
 function resolveThumb(track) {
     return track.thumb || channels[currentChannel].defaultThumb || FALLBACK_THUMB;
 }
 
-/* ================= SHUFFLE ================= */
-
+/* ===== SHUFFLE ===== */
 function buildShuffleQueue(start = 0) {
     shuffleQueue = playlist.map((_, i) => i).sort(() => Math.random() - 0.5);
     const pos = shuffleQueue.indexOf(start);
@@ -227,20 +255,16 @@ function buildShuffleQueue(start = 0) {
     shufflePos = 0;
 }
 
-/* ================= PLAYBACK ================= */
+/* ===== PLAYBACK ===== */
+function playTrack(i) {
+    currentIndex = i;
+    const t = playlist[i];
 
-function playTrack(index) {
-    currentIndex = index;
-    const track = playlist[index];
-
-    audio.src = track.file;
+    audio.src = t.file;
     audio.play();
 
-    // Update big artwork
-    nowArt.src = resolveThumb(track);
-    nowArt.onerror = () => nowArt.src = FALLBACK_THUMB;
-
-    nowTitle.textContent = track.title;
+    nowArt.src = resolveThumb(t);
+    nowTitle.textContent = t.title;
     nowChannel.textContent = currentChannel;
 
     highlight();
@@ -268,52 +292,60 @@ function prev() {
     }
 }
 
-/* ================= RENDER ================= */
+/* ===== EVENTS ===== */
+playBtn.onclick = () => audio.paused ? audio.play() : audio.pause();
+audio.onplay = () => playBtn.textContent = '⏸';
+audio.onpause = () => playBtn.textContent = '▶';
 
+audio.ontimeupdate = () => {
+    progress.style.width = ((audio.currentTime / audio.duration) * 100 || 0) + '%';
+    timeLabel.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration || 0)}`;
+};
+
+timeline.onclick = e => {
+    const r = timeline.getBoundingClientRect();
+    audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
+};
+
+audio.onended = next;
+
+document.getElementById('nextBtn').onclick = next;
+document.getElementById('prevBtn').onclick = prev;
+
+shuffleBtn.onclick = () => {
+    shuffleEnabled = !shuffleEnabled;
+    shuffleBtn.classList.toggle('off', !shuffleEnabled);
+    if (shuffleEnabled) buildShuffleQueue(currentIndex);
+};
+
+/* ===== RENDER ===== */
 function renderPlaylist() {
     const pl = document.getElementById('playlist');
     pl.innerHTML = '';
-
-    playlist.forEach((track, i) => {
-        const div = document.createElement('div');
-        div.className = 'track';
-
-        const img = document.createElement('img');
-        img.src = resolveThumb(track);
-        img.onerror = () => img.src = FALLBACK_THUMB;
-
-        const span = document.createElement('span');
-        span.textContent = track.title;
-
-        div.appendChild(img);
-        div.appendChild(span);
-        div.onclick = () => {
-            if (shuffleEnabled) buildShuffleQueue(i);
-            playTrack(i);
-        };
-
-        pl.appendChild(div);
+    playlist.forEach((t, i) => {
+        const d = document.createElement('div');
+        d.className = 'track';
+        d.innerHTML = `<img src="${resolveThumb(t)}"><span>${t.title}</span>`;
+        d.onclick = () => playTrack(i);
+        pl.appendChild(d);
     });
 }
 
 function highlight() {
-    const idx = shuffleEnabled ? shuffleQueue[shufflePos] : currentIndex;
     document.querySelectorAll('.track').forEach((el, i) =>
-        el.classList.toggle('active', i === idx)
+        el.classList.toggle('active', i === currentIndex)
     );
 }
 
 function renderChannels() {
     const sb = document.getElementById('sidebar');
     sb.innerHTML = '';
-
     Object.keys(channels).forEach(ch => {
-        const btn = document.createElement('button');
-        btn.className = 'channel-btn';
-        btn.textContent = ch;
-        if (ch === currentChannel) btn.classList.add('active');
-
-        btn.onclick = () => {
+        const b = document.createElement('button');
+        b.className = 'channel-btn';
+        b.textContent = ch;
+        if (ch === currentChannel) b.classList.add('active');
+        b.onclick = () => {
             currentChannel = ch;
             playlist = channels[ch].tracks;
             buildShuffleQueue(0);
@@ -321,26 +353,11 @@ function renderChannels() {
             renderPlaylist();
             playTrack(0);
         };
-
-        sb.appendChild(btn);
+        sb.appendChild(b);
     });
 }
 
-/* ================= EVENTS ================= */
-
-audio.addEventListener('ended', next);
-document.getElementById('nextBtn').onclick = next;
-document.getElementById('prevBtn').onclick = prev;
-
-document.getElementById('shuffleBtn').onclick = function () {
-    shuffleEnabled = !shuffleEnabled;
-    this.textContent = `🔀 Shuffle: ${shuffleEnabled ? 'ON' : 'OFF'}`;
-    this.classList.toggle('off', !shuffleEnabled);
-    if (shuffleEnabled) buildShuffleQueue(currentIndex);
-};
-
-/* ================= INIT ================= */
-
+/* ===== INIT ===== */
 buildShuffleQueue(0);
 renderChannels();
 renderPlaylist();
@@ -349,6 +366,5 @@ playTrack(0);
 
 </body>
 </html>
-
 
 
