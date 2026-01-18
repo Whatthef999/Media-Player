@@ -50,25 +50,41 @@ body {
     opacity: 0.7;
 }
 
-/* ===== CUSTOM PLAYER ===== */
-#audio {
-    display: none;
-}
+/* ===== PLAYER UI ===== */
+#audio { display: none; }
 
 #player-ui {
     background: #000;
     border: 1px solid #330000;
     border-radius: 10px;
-    padding: 15px;
+    padding: 12px;
     margin-bottom: 15px;
 }
 
+#player-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#playPause {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid #660000;
+    background: linear-gradient(180deg, #ff1a1a, #990000);
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+}
+
 #progress-container {
+    flex: 1;
     height: 12px;
     background: #111;
     border-radius: 10px;
-    cursor: pointer;
     position: relative;
+    cursor: pointer;
     overflow: hidden;
 }
 
@@ -91,15 +107,20 @@ body {
     pointer-events: none;
 }
 
+#volume {
+    width: 90px;
+    accent-color: #ff1a1a;
+}
+
 #time {
     display: flex;
     justify-content: space-between;
-    font-size: 0.9em;
-    opacity: 0.8;
+    font-size: 0.85em;
+    opacity: 0.75;
     margin-top: 6px;
 }
 
-/* ===== CONTROLS ===== */
+/* ===== NAV ===== */
 .controls {
     display: flex;
     justify-content: center;
@@ -117,7 +138,7 @@ body {
     color: #fff;
 }
 
-/* ===== CHANNEL PANEL ===== */
+/* ===== CHANNELS ===== */
 #channels-panel {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -148,19 +169,25 @@ body {
 <div id="main">
 
     <div id="now-playing">
-        <img id="now-art" src="">
+        <img id="now-art">
         <div>
             <div id="now-title">—</div>
             <div id="now-channel">—</div>
         </div>
     </div>
 
-    <!-- CUSTOM PLAYER -->
     <div id="player-ui">
-        <div id="progress-container">
-            <div id="progress"></div>
-            <div id="playhead"></div>
+        <div id="player-controls">
+            <button id="playPause">⏸</button>
+
+            <div id="progress-container">
+                <div id="progress"></div>
+                <div id="playhead"></div>
+            </div>
+
+            <input id="volume" type="range" min="0" max="1" step="0.01" value="1">
         </div>
+
         <div id="time">
             <span id="current">0:00</span>
             <span id="duration">0:00</span>
@@ -187,17 +214,7 @@ const channels = {
         tracks: [
             { file: 'mp3/thrashmetal/Exodus - Fabulous Disaster.mp3', title: 'Exodus - Fabulous Disaster', thumb: 'thumbs/thrashmetal/Exodus - Fabulous Disaster.jpg' },
             { file: 'mp3/thrashmetal/Anthrax - Caught In A Mosh.mp3', title: 'Anthrax - Caught In A Mosh', thumb: 'thumbs/thrashmetal/Anthrax - Caught In A Mosh.jpg' },
-            { file: 'mp3/thrashmetal/Evildead - Gone Shooting.mp3', title: 'Evildead - Gone Shooting', thumb: 'thumbs/thrashmetal/Evildead - Gone Shooting.jpg' },
-            { file: 'mp3/thrashmetal/Mortal Sin - Voyage of the Disturbed.mp3', title: 'Mortal Sin - Voyage of the Disturbed', thumb: 'thumbs/thrashmetal/Mortal Sin - Voyage of the Disturbed.jpg' },
             { file: 'mp3/thrashmetal/Sodom - Agent Orange.mp3', title: 'Sodom - Agent Orange', thumb: 'thumbs/thrashmetal/Sodom - Agent Orange.jpg' }
-        ]
-    },
-    Rock: {
-        name: 'Rock',
-        tracks: [
-            { file: 'mp3/rock/ACDC-HighVoltage.mp3', title: 'AC DC - High Voltage', thumb: 'thumbs/rock/ACDC-HighVoltage.jpg' },
-            { file: 'mp3/rock/ACDC-LiveWire.mp3', title: 'AC DC - Live Wire', thumb: 'thumbs/rock/ACDC-LiveWire.jpg' },
-            { file: 'mp3/rock/ACDC-TNT.mp3', title: 'AC DC - T.N.T', thumb: 'thumbs/rock/ACDC-TNT.jpg' }
         ]
     }
 };
@@ -205,26 +222,23 @@ const channels = {
 /* ===== STATE ===== */
 let currentChannel = 'ThrashMetal';
 let playlist = [];
-let playBag = [];
+let bag = [];
 let history = [];
 
 const audio = document.getElementById('audio');
-const nowArt = document.getElementById('now-art');
-const nowTitle = document.getElementById('now-title');
-const nowChannel = document.getElementById('now-channel');
+const playPause = document.getElementById('playPause');
+const volume = document.getElementById('volume');
 
 /* ===== SHUFFLE BAG ===== */
 function refillBag() {
-    playBag = playlist.map((_, i) => i).sort(() => Math.random() - 0.5);
+    bag = playlist.map((_, i) => i).sort(() => Math.random() - 0.5);
 }
-
 function nextIndex() {
-    if (playBag.length === 0) refillBag();
-    const idx = playBag.shift();
-    history.push(idx);
-    return idx;
+    if (!bag.length) refillBag();
+    const i = bag.shift();
+    history.push(i);
+    return i;
 }
-
 function prevIndex() {
     if (history.length > 1) {
         history.pop();
@@ -238,10 +252,8 @@ function playTrack(i) {
     const t = playlist[i];
     audio.src = t.file;
     audio.play();
-
+    playPause.textContent = '⏸';
     nowArt.src = t.thumb || FALLBACK_THUMB;
-    nowArt.onerror = () => nowArt.src = FALLBACK_THUMB;
-
     nowTitle.textContent = t.title;
     nowChannel.textContent = channels[currentChannel].name;
 }
@@ -255,52 +267,88 @@ function switchChannel(ch) {
     renderChannels();
     playTrack(nextIndex());
 }
-
 function renderChannels() {
-    const panel = document.getElementById('channels-panel');
-    panel.innerHTML = '';
+    const p = document.getElementById('channels-panel');
+    p.innerHTML = '';
     Object.keys(channels).forEach(ch => {
-        const btn = document.createElement('button');
-        btn.className = 'channel-btn' + (ch === currentChannel ? ' active' : '');
-        btn.textContent = channels[ch].name;
-        btn.onclick = () => switchChannel(ch);
-        panel.appendChild(btn);
+        const b = document.createElement('button');
+        b.className = 'channel-btn' + (ch === currentChannel ? ' active' : '');
+        b.textContent = channels[ch].name;
+        b.onclick = () => switchChannel(ch);
+        p.appendChild(b);
     });
 }
 
-/* ===== PROGRESS BAR ===== */
+/* ===== UI ===== */
+playPause.onclick = () => {
+    if (audio.paused) { audio.play(); playPause.textContent = '⏸'; }
+    else { audio.pause(); playPause.textContent = '▶'; }
+};
+volume.oninput = () => audio.volume = volume.value;
+
+audio.addEventListener('ended', () => playTrack(nextIndex()));
+nextBtn.onclick = () => playTrack(nextIndex());
+prevBtn.onclick = () => playTrack(prevIndex());
+
+/* ===== PROGRESS ===== */
 const progress = document.getElementById('progress');
 const playhead = document.getElementById('playhead');
 const container = document.getElementById('progress-container');
-const currentEl = document.getElementById('current');
-const durationEl = document.getElementById('duration');
+const cur = document.getElementById('current');
+const dur = document.getElementById('duration');
 
 audio.addEventListener('timeupdate', () => {
-    const pct = (audio.currentTime / audio.duration) * 100 || 0;
-    progress.style.width = pct + '%';
-    playhead.style.left = pct + '%';
-    currentEl.textContent = format(audio.currentTime);
+    const p = (audio.currentTime / audio.duration) * 100 || 0;
+    progress.style.width = p + '%';
+    playhead.style.left = p + '%';
+    cur.textContent = fmt(audio.currentTime);
 });
-
-audio.addEventListener('loadedmetadata', () => {
-    durationEl.textContent = format(audio.duration);
-});
-
+audio.addEventListener('loadedmetadata', () => dur.textContent = fmt(audio.duration));
 container.onclick = e => {
     const r = container.getBoundingClientRect();
     audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
 };
-
-function format(t) {
+function fmt(t) {
     const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60).toString().padStart(2, '0');
+    const s = Math.floor(t % 60).toString().padStart(2,'0');
     return `${m}:${s}`;
 }
 
-/* ===== EVENTS ===== */
-audio.addEventListener('ended', () => playTrack(nextIndex()));
-document.getElementById('nextBtn').onclick = () => playTrack(nextIndex());
-document.getElementById('prevBtn').onclick = () => playTrack(prevIndex());
+/* ===== KEYBOARD SHORTCUTS ===== */
+document.addEventListener('keydown', e => {
+    if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+
+    switch (e.key) {
+        case ' ':
+            e.preventDefault();
+            playPause.click();
+            break;
+        case 'ArrowRight':
+            playTrack(nextIndex());
+            break;
+        case 'ArrowLeft':
+            playTrack(prevIndex());
+            break;
+        case 'ArrowUp':
+            audio.volume = Math.min(1, audio.volume + 0.05);
+            volume.value = audio.volume;
+            break;
+        case 'ArrowDown':
+            audio.volume = Math.max(0, audio.volume - 0.05);
+            volume.value = audio.volume;
+            break;
+        case 'm':
+        case 'M':
+            audio.muted = !audio.muted;
+            break;
+        case 'Home':
+            audio.currentTime = 0;
+            break;
+        case 'End':
+            audio.currentTime = audio.duration;
+            break;
+    }
+});
 
 /* ===== INIT ===== */
 renderChannels();
@@ -309,5 +357,3 @@ switchChannel(currentChannel);
 
 </body>
 </html>
-
-
